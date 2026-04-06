@@ -508,9 +508,10 @@ def resolve_anthropic_token() -> Optional[str]:
     Priority:
       1. ANTHROPIC_TOKEN env var (OAuth/setup token saved by Hermes)
       2. CLAUDE_CODE_OAUTH_TOKEN env var
-      3. Claude Code credentials (~/.claude.json or ~/.claude/.credentials.json)
+      3. ANTHROPIC_API_KEY env var with a real Console API key (sk-ant-api*)
+      4. Claude Code credentials (~/.claude.json or ~/.claude/.credentials.json)
          — with automatic refresh if expired and a refresh token is available
-      4. ANTHROPIC_API_KEY env var (regular API key, or legacy fallback)
+      5. ANTHROPIC_API_KEY env var with a non-standard key (OAuth token, JWT, etc.)
 
     Returns the token string or None.
     """
@@ -532,14 +533,19 @@ def resolve_anthropic_token() -> Optional[str]:
             return preferred
         return cc_token
 
-    # 3. Claude Code credential file
+    # 3. ANTHROPIC_API_KEY with a real Console API key (sk-ant-api*) takes
+    #    priority over Claude Code credential files — an explicit env var
+    #    should not be shadowed by a side-effect of having Claude Code installed.
+    api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    if api_key and api_key.startswith("sk-ant-api"):
+        return api_key
+
+    # 4. Claude Code credential file
     resolved_claude_token = _resolve_claude_code_token_from_credentials(creds)
     if resolved_claude_token:
         return resolved_claude_token
 
-    # 4. Regular API key, or a legacy OAuth token saved in ANTHROPIC_API_KEY.
-    # This remains as a compatibility fallback for pre-migration Hermes configs.
-    api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    # 5. ANTHROPIC_API_KEY with a non-standard key (OAuth token, JWT, etc.)
     if api_key:
         return api_key
 

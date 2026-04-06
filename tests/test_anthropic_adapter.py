@@ -244,6 +244,24 @@ class TestResolveAnthropicToken:
 
         assert resolve_anthropic_token() == "cc-auto-token"
 
+    def test_api_key_not_shadowed_by_claude_code_credentials(self, monkeypatch, tmp_path):
+        """ANTHROPIC_API_KEY with a real Console key (sk-ant-api*) must not be
+        shadowed by OAuth credentials in ~/.claude/.credentials.json."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-api03-mykey")
+        monkeypatch.delenv("ANTHROPIC_TOKEN", raising=False)
+        monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
+        cred_file = tmp_path / ".claude" / ".credentials.json"
+        cred_file.parent.mkdir(parents=True)
+        cred_file.write_text(json.dumps({
+            "claudeAiOauth": {
+                "accessToken": "cc-oauth-token",
+                "refreshToken": "refresh",
+                "expiresAt": int(time.time() * 1000) + 3600_000,
+            }
+        }))
+        monkeypatch.setattr("agent.anthropic_adapter.Path.home", lambda: tmp_path)
+        assert resolve_anthropic_token() == "sk-ant-api03-mykey"
+
     def test_keeps_static_anthropic_token_when_only_non_refreshable_claude_key_exists(self, monkeypatch, tmp_path):
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("ANTHROPIC_TOKEN", "sk-ant-oat01-static-token")
